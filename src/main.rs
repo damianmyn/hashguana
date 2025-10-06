@@ -1,4 +1,5 @@
 use std::{fs::File, io::{self, stdin, stdout, Read, Write}, path::Path, process::Command};
+use std::{fs::File, io::{self, stdin, stdout, Read, Write}, path::Path, process::Command};
 use sha2::{Sha256, Digest};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -7,6 +8,7 @@ fn get_file_hash(filepath: &str) -> io::Result<String> {
     let mut file = File::open(filepath)?;
     let file_size = file.metadata()?.len();
     
+    // Create progress bar
     let pb = ProgressBar::new(file_size);
     pb.set_style(
         ProgressStyle::default_bar()
@@ -80,6 +82,7 @@ fn main() {
     };
 
     print!("Input hash/signature file (file path or paste hash): ");
+    print!("Input hash/signature file (file path or paste hash): ");
     let _ = stdout().flush();
     let mut compare_input = String::new();
     let _ = stdin().read_line(&mut compare_input);
@@ -125,9 +128,11 @@ fn main() {
         compare_input.to_string()
     } else {
         eprintln!("Invalid input: not a valid file path, signature file, or SHA256 hash");
+        eprintln!("Invalid input: not a valid file path, signature file, or SHA256 hash");
         return;
     };
 
+    println!("\n--- Hash Comparison Result ---");
     println!("\n--- Hash Comparison Result ---");
     if original_hash == compare_hash {
         println!("{}", "✓ Hashes MATCH".green());
