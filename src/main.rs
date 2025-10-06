@@ -1,5 +1,4 @@
 use std::{fs::File, io::{self, stdin, stdout, Read, Write}, path::Path, process::Command};
-use std::{fs::File, io::{self, stdin, stdout, Read, Write}, path::Path, process::Command};
 use sha2::{Sha256, Digest};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
