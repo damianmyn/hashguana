@@ -1,9 +1,14 @@
 use std::{fs::File, io::{self, stdin, stdout, Read, Write}, path::Path, process::Command};
+use std::collections::HashMap;
 use sha2::{Sha256, Digest};
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 
-fn get_file_hash(filepath: &str) -> io::Result<String> {
+fn get_file_hash(filepath: &str, cache: &mut HashMap<String, String>) -> io::Result<String> {
+    if let Some(hash) = cache.get(filepath) {
+        return Ok(hash.clone());
+    }
+
     let mut file = File::open(filepath)?;
     let file_size = file.metadata()?.len();
     
@@ -33,7 +38,9 @@ fn get_file_hash(filepath: &str) -> io::Result<String> {
     pb.finish_with_message("Complete");
     
     let hash_result = hasher.finalize();
-    Ok(format!("{:x}", hash_result))
+    let hash_string = format!("{:x}", hash_result);
+    cache.insert(filepath.to_string(), hash_string.clone());
+    Ok(hash_string)
 }
 
 fn is_valid_hash(input: &str) -> bool {
@@ -45,31 +52,47 @@ fn is_sig_file(filepath: &str) -> bool {
 }
 
 fn verify_signature(file_path: &str, sig_path: &str) -> io::Result<bool> {
+    use std::time::Duration;
+
     println!("\n{}", "--- GPG Signature Verification ---".cyan());
     println!("File: {}", file_path);
     println!("Signature: {}", sig_path);
     println!("Verifying...\n");
-    
+
+    // Start spinner
+    let pb = ProgressBar::new_spinner();
+    pb.set_message("Verifying signature with GPG...");
+    pb.enable_steady_tick(Duration::from_millis(100));
+
+    // Run GPG verification in a blocking way
     let output = Command::new("gpg")
         .arg("--verify")
         .arg(sig_path)
         .arg(file_path)
-        .output()?;
-    
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    print!("{}", stderr);
-    
-    Ok(output.status.success())
+        .output();
+
+    pb.finish_and_clear();
+
+    match output {
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            print!("{}", stderr);
+            Ok(output.status.success())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 fn main() {
+    let mut hash_cache: HashMap<String, String> = HashMap::new();
+
     print!("Input file path: ");
     let _ = stdout().flush();
     let mut input_string = String::new();
     let _ = stdin().read_line(&mut input_string);
     let filepath = input_string.trim();
 
-    let original_hash = match get_file_hash(filepath) {
+    let original_hash = match get_file_hash(filepath, &mut hash_cache) {
         Ok(hash) => {
             println!("SHA256 | {}", hash);
             hash
@@ -80,7 +103,6 @@ fn main() {
         }
     };
 
-    print!("Input hash/signature file (file path or paste hash): ");
     print!("Input hash/signature file (file path or paste hash): ");
     let _ = stdout().flush();
     let mut compare_input = String::new();
@@ -112,7 +134,7 @@ fn main() {
 
     let compare_hash = if Path::new(compare_input).exists() {
         println!("Detected as file path, computing hash...");
-        match get_file_hash(compare_input) {
+        match get_file_hash(compare_input, &mut hash_cache) {
             Ok(hash) => {
                 println!("SHA256 | {}", hash);
                 hash
@@ -127,11 +149,9 @@ fn main() {
         compare_input.to_string()
     } else {
         eprintln!("Invalid input: not a valid file path, signature file, or SHA256 hash");
-        eprintln!("Invalid input: not a valid file path, signature file, or SHA256 hash");
         return;
     };
 
-    println!("\n--- Hash Comparison Result ---");
     println!("\n--- Hash Comparison Result ---");
     if original_hash == compare_hash {
         println!("{}", "✓ Hashes MATCH".green());
